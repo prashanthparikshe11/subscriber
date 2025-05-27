@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Parikshe Email Manager</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      padding: 20px;
+      background: #f9f9f9;
+      color: #333;
+      max-width: 700px;
+      margin: auto;
+    }
+
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+    }
+
+    input, textarea, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 8px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    .flex-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .flex-row button {
+      flex: 1;
+    }
+
+    .output {
+      font-family: monospace;
+      white-space: pre-wrap;
+      background: #f0f0f0;
+      padding: 10px;
+      border-radius: 5px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .success {
+      color: green;
+    }
+
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Email Subscription Tool</h2>
+
+    <label>NID (Notification ID)</label>
+    <input type="text" id="nid" placeholder="e.g. push_notifications_2025" />
+
+    <label>Email IDs (comma-separated or new lines)</label>
+    <textarea id="emailList" rows="5" placeholder="Enter emails..."></textarea>
+
+    <div class="flex-row">
+      <button onclick="handleAction('subscribe')">Subscribe</button>
+      <button onclick="handleAction('unsubscribe')">Unsubscribe</button>
+    </div>
+
+    <div id="feedback" class="success"></div>
+  </div>
+
+  <div class="card">
+    <h3>Currently Subscribed Emails for this NID</h3>
+    <div id="subscribedList" class="output">(No emails yet)</div>
+
+    <div class="flex-row">
+      <button onclick="copyList()">Copy</button>
+      <button onclick="exportList()">Export</button>
+    </div>
+  </div>
+
+  <script>
+    function getStoredEmails(nid) {
+      return JSON.parse(localStorage.getItem('emails_' + nid) || '[]');
+    }
+
+    function setStoredEmails(nid, emails) {
+      localStorage.setItem('emails_' + nid, JSON.stringify(emails));
+    }
+
+    function handleAction(action) {
+      const nid = document.getElementById('nid').value.trim();
+      const input = document.getElementById('emailList').value.trim();
+      const feedbackEl = document.getElementById('feedback');
+
+      if (!nid) return feedbackEl.innerHTML = '<span class="error">❌ Please enter NID.</span>';
+
+      const emails = input
+        .split(/[\s,]+/)
+        .map(e => e.trim())
+        .filter(e => /^[^@]+@[^@]+\.[^@]+$/.test(e));
+
+      if (emails.length === 0) return feedbackEl.innerHTML = '<span class="error">❌ No valid emails entered.</span>';
+
+      let stored = getStoredEmails(nid);
+
+      if (action === 'subscribe') {
+        emails.forEach(email => { if (!stored.includes(email)) stored.push(email); });
+        feedbackEl.innerHTML = `✅ Subscribed ${emails.length} email(s).`;
+      } else {
+        stored = stored.filter(email => !emails.includes(email));
+        feedbackEl.innerHTML = `✅ Unsubscribed ${emails.length} email(s).`;
+      }
+
+      setStoredEmails(nid, stored);
+      displayEmails(nid);
+      document.getElementById('emailList').value = '';
+    }
+
+    function displayEmails(nid) {
+      const stored = getStoredEmails(nid);
+      const out = document.getElementById('subscribedList');
+      out.textContent = stored.length ? stored.join(', ') : '(No emails yet)';
+    }
+
+    document.getElementById('nid').addEventListener('input', () => {
+      const nid = document.getElementById('nid').value.trim();
+      displayEmails(nid);
+    });
+
+    function copyList() {
+      const text = document.getElementById('subscribedList').innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        alert("Copied to clipboard!");
+      });
+    }
+
+    function exportList() {
+      const nid = document.getElementById('nid').value.trim();
+      const emails = getStoredEmails(nid);
+      const blob = new Blob([emails.join('\n')], { type: "text/plain" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `emails_${nid}.txt`;
+      link.click();
+    }
+
+    // On page load
+    const lastUsedNID = localStorage.getItem('last_nid');
+    if (lastUsedNID) {
+      document.getElementById('nid').value = lastUsedNID;
+      displayEmails(lastUsedNID);
+    }
+
+    // Remember last NID
+    document.getElementById('nid').addEventListener('change', (e) => {
+      localStorage.setItem('last_nid', e.target.value.trim());
+    });
+  </script>
+</body>
+</html>
