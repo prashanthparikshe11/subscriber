@@ -22,7 +22,6 @@
       border: 1px solid #ccc;
       border-radius: 4px;
       font-size: 14px;
-      box-sizing: border-box;
     }
     button {
       background: #007bff;
@@ -39,13 +38,8 @@
     }
     .success { color: green; }
     .error { color: red; }
-    .flex {
-      display: flex;
-      gap: 10px;
-    }
-    .flex button {
-      flex: 1;
-    }
+    .flex { display: flex; gap: 10px; }
+    .flex button { flex: 1; }
   </style>
 </head>
 <body>
@@ -53,15 +47,18 @@
   <h2>📩 Parikshe Email API Manager</h2>
 
   <label>JWT Token</label>
-  <input id="token" type="text" placeholder="Paste your JWT token or click Generate below" />
+  <input id="token" type="text" placeholder="Paste your JWT token or generate below" />
 
   <button onclick="generateToken()">🔐 Generate Token</button>
 
-  <label>Notification ID (nid)</label>
-  <input id="nid" type="text" placeholder="e.g. push_notifications_2025" />
+  <label>Client ID</label>
+  <input id="clientId" type="text" value="PriHiJkL9mNoEjnnAlkiofsX1yZ2aNcKeE" />
+
+  <label>Product SKU</label>
+  <input id="sku" type="text" value="PROD-573301-Annual Plan" />
 
   <label>Email IDs</label>
-  <textarea id="emailList" rows="5" placeholder="Comma or newline separated emails"></textarea>
+  <textarea id="emailList" rows="5" placeholder="One email per line or comma-separated"></textarea>
 
   <div class="flex">
     <button onclick="submitEmails('subscribe')">Subscribe</button>
@@ -74,26 +71,23 @@
     async function generateToken() {
       const statusBox = document.getElementById("status");
 
-      const payload = {
-        user_id: "admin123",
-        email: "admin@parikshe.in",
-        name: "Parikshe Admin"
-      };
-
       try {
-        const response = await fetch("http://prashanthrapelli.free.nf/generateJWT.php", {
+        const res = await fetch("http://prashanthrapelli.free.nf/generateJWT.php", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({
+            user_id: "admin123",
+            email: "admin@parikshe.in",
+            name: "Parikshe Admin"
+          })
         });
 
-        const data = await response.json();
-
-        if (response.ok && data.token) {
+        const data = await res.json();
+        if (res.ok && data.token) {
           document.getElementById("token").value = data.token;
           statusBox.innerHTML = `<span class="success">✅ JWT token generated successfully.</span>`;
         } else {
-          throw new Error(data.message || "JWT generation failed.");
+          throw new Error(data.message || "Token generation failed.");
         }
       } catch (err) {
         statusBox.innerHTML = `<span class="error">❌ ${err.message}</span>`;
@@ -102,11 +96,12 @@
 
     async function submitEmails(action) {
       const token = document.getElementById("token").value.trim();
-      const nid = document.getElementById("nid").value.trim();
+      const clientId = document.getElementById("clientId").value.trim();
+      const sku = document.getElementById("sku").value.trim();
       const emailText = document.getElementById("emailList").value.trim();
       const statusBox = document.getElementById("status");
 
-      if (!token || !nid || !emailText) {
+      if (!token || !clientId || !sku || !emailText) {
         statusBox.innerHTML = '<span class="error">❌ Please fill in all fields.</span>';
         return;
       }
@@ -121,33 +116,33 @@
         return;
       }
 
-      statusBox.innerHTML = "⏳ Sending request...";
+      let successCount = 0, failed = [];
 
-      try {
-        const res = await fetch("https://api.parikshe.in/notifications/subscription", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-API-Key": token
-          },
-          body: JSON.stringify({
-            nid,
-            emails,
-            action
-          })
-        });
+      for (const email of emails) {
+        const url = `https://admin.study.parikshe.in/api/${action}/product?jwt=${token}&client_id=${clientId}`;
+        const body = action === 'subscribe'
+          ? { sku, username: email }
+          : { product_sku: sku, username: email };
 
-        const data = await res.json();
+        try {
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+          });
 
-        if (!res.ok) {
-          throw new Error(data.message || "Subscription failed.");
+          if (res.ok) successCount++;
+          else failed.push(email);
+        } catch (err) {
+          failed.push(email);
         }
-
-        statusBox.innerHTML = `<span class="success">✅ ${action} successful for ${emails.length} email(s).</span>`;
-        document.getElementById("emailList").value = '';
-      } catch (err) {
-        statusBox.innerHTML = `<span class="error">❌ ${err.message}</span>`;
       }
+
+      statusBox.innerHTML =
+        `<span class="success">✅ ${action} successful for ${successCount} email(s).</span>` +
+        (failed.length ? `<br><span class="error">❌ Failed for: ${failed.join(', ')}</span>` : "");
+
+      document.getElementById("emailList").value = '';
     }
   </script>
 
