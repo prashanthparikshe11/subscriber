@@ -2,182 +2,108 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Parikshe Email Manager</title>
+  <title>Parikshe Email API Manager</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body {
-      font-family: 'Segoe UI', sans-serif;
+      font-family: sans-serif;
       padding: 20px;
-      background: #f9f9f9;
-      color: #333;
-      max-width: 700px;
+      max-width: 600px;
       margin: auto;
     }
-
-    .card {
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-      margin-bottom: 20px;
-    }
-
     input, textarea, button {
       width: 100%;
+      margin: 8px 0;
       padding: 10px;
-      margin-top: 8px;
-      margin-bottom: 16px;
-      font-size: 14px;
-      border-radius: 5px;
       border: 1px solid #ccc;
-      box-sizing: border-box;
+      border-radius: 4px;
     }
-
     button {
-      background-color: #007bff;
+      background: #007bff;
       color: white;
       border: none;
       cursor: pointer;
-      transition: background 0.2s;
     }
-
     button:hover {
-      background-color: #0056b3;
+      background: #0056b3;
     }
-
-    .flex-row {
-      display: flex;
-      gap: 10px;
+    .status {
+      margin-top: 10px;
+      font-weight: bold;
     }
-
-    .flex-row button {
-      flex: 1;
-    }
-
-    .output {
-      font-family: monospace;
-      white-space: pre-wrap;
-      background: #f0f0f0;
-      padding: 10px;
-      border-radius: 5px;
-      max-height: 200px;
-      overflow-y: auto;
-    }
-
-    .success {
-      color: green;
-    }
-
-    .error {
-      color: red;
-    }
+    .success { color: green; }
+    .error { color: red; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h2>Email Subscription Tool</h2>
 
-    <label>NID (Notification ID)</label>
-    <input type="text" id="nid" placeholder="e.g. push_notifications_2025" />
+  <h2>📩 Email Subscription via API</h2>
 
-    <label>Email IDs (comma-separated or new lines)</label>
-    <textarea id="emailList" rows="5" placeholder="Enter emails..."></textarea>
+  <label>JWT Token</label>
+  <input id="token" type="text" placeholder="Paste your JWT token" />
 
-    <div class="flex-row">
-      <button onclick="handleAction('subscribe')">Subscribe</button>
-      <button onclick="handleAction('unsubscribe')">Unsubscribe</button>
-    </div>
+  <label>Notification ID (nid)</label>
+  <input id="nid" type="text" placeholder="e.g. push_notifications_2025" />
 
-    <div id="feedback" class="success"></div>
-  </div>
+  <label>Email IDs</label>
+  <textarea id="emailList" rows="5" placeholder="Comma or newline separated emails"></textarea>
 
-  <div class="card">
-    <h3>Currently Subscribed Emails for this NID</h3>
-    <div id="subscribedList" class="output">(No emails yet)</div>
+  <button onclick="submitEmails('subscribe')">Subscribe</button>
+  <button onclick="submitEmails('unsubscribe')">Unsubscribe</button>
 
-    <div class="flex-row">
-      <button onclick="copyList()">Copy</button>
-      <button onclick="exportList()">Export</button>
-    </div>
-  </div>
+  <div id="status" class="status"></div>
 
   <script>
-    function getStoredEmails(nid) {
-      return JSON.parse(localStorage.getItem('emails_' + nid) || '[]');
-    }
+    async function submitEmails(action) {
+      const token = document.getElementById("token").value.trim();
+      const nid = document.getElementById("nid").value.trim();
+      const emailText = document.getElementById("emailList").value.trim();
+      const statusBox = document.getElementById("status");
 
-    function setStoredEmails(nid, emails) {
-      localStorage.setItem('emails_' + nid, JSON.stringify(emails));
-    }
+      if (!token || !nid || !emailText) {
+        statusBox.innerHTML = '<span class="error">Please fill in all fields.</span>';
+        return;
+      }
 
-    function handleAction(action) {
-      const nid = document.getElementById('nid').value.trim();
-      const input = document.getElementById('emailList').value.trim();
-      const feedbackEl = document.getElementById('feedback');
-
-      if (!nid) return feedbackEl.innerHTML = '<span class="error">❌ Please enter NID.</span>';
-
-      const emails = input
+      const emails = emailText
         .split(/[\s,]+/)
         .map(e => e.trim())
         .filter(e => /^[^@]+@[^@]+\.[^@]+$/.test(e));
 
-      if (emails.length === 0) return feedbackEl.innerHTML = '<span class="error">❌ No valid emails entered.</span>';
-
-      let stored = getStoredEmails(nid);
-
-      if (action === 'subscribe') {
-        emails.forEach(email => { if (!stored.includes(email)) stored.push(email); });
-        feedbackEl.innerHTML = `✅ Subscribed ${emails.length} email(s).`;
-      } else {
-        stored = stored.filter(email => !emails.includes(email));
-        feedbackEl.innerHTML = `✅ Unsubscribed ${emails.length} email(s).`;
+      if (emails.length === 0) {
+        statusBox.innerHTML = '<span class="error">No valid emails entered.</span>';
+        return;
       }
 
-      setStoredEmails(nid, stored);
-      displayEmails(nid);
-      document.getElementById('emailList').value = '';
+      statusBox.innerHTML = "⏳ Processing...";
+
+      try {
+        const res = await fetch('https://api.parikshe.in/notifications/subscription', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': token
+          },
+          body: JSON.stringify({
+            nid,
+            emails,
+            action
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.message || 'Request failed');
+        }
+
+        statusBox.innerHTML = `<span class="success">✅ ${action} successful for ${emails.length} emails.</span>`;
+        document.getElementById("emailList").value = '';
+      } catch (err) {
+        statusBox.innerHTML = `<span class="error">❌ ${err.message}</span>`;
+      }
     }
-
-    function displayEmails(nid) {
-      const stored = getStoredEmails(nid);
-      const out = document.getElementById('subscribedList');
-      out.textContent = stored.length ? stored.join(', ') : '(No emails yet)';
-    }
-
-    document.getElementById('nid').addEventListener('input', () => {
-      const nid = document.getElementById('nid').value.trim();
-      displayEmails(nid);
-    });
-
-    function copyList() {
-      const text = document.getElementById('subscribedList').innerText;
-      navigator.clipboard.writeText(text).then(() => {
-        alert("Copied to clipboard!");
-      });
-    }
-
-    function exportList() {
-      const nid = document.getElementById('nid').value.trim();
-      const emails = getStoredEmails(nid);
-      const blob = new Blob([emails.join('\n')], { type: "text/plain" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `emails_${nid}.txt`;
-      link.click();
-    }
-
-    // On page load te
-    const lastUsedNID = localStorage.getItem('last_nid');
-    if (lastUsedNID) {
-      document.getElementById('nid').value = lastUsedNID;
-      displayEmails(lastUsedNID);
-    }
-
-    // Remember last NIDD
-    document.getElementById('nid').addEventListener('change', (e) => {
-      localStorage.setItem('last_nid', e.target.value.trim());
-    });
   </script>
+
 </body>
 </html>
