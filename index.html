@@ -10,6 +10,10 @@
       padding: 20px;
       max-width: 600px;
       margin: auto;
+      background: #f9f9f9;
+    }
+    h2 {
+      text-align: center;
     }
     input, textarea, button {
       width: 100%;
@@ -17,6 +21,8 @@
       padding: 10px;
       border: 1px solid #ccc;
       border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
     }
     button {
       background: #007bff;
@@ -33,14 +39,23 @@
     }
     .success { color: green; }
     .error { color: red; }
+    .flex {
+      display: flex;
+      gap: 10px;
+    }
+    .flex button {
+      flex: 1;
+    }
   </style>
 </head>
 <body>
 
-  <h2>📩 Email Subscription via API</h2>
+  <h2>📩 Parikshe Email API Manager</h2>
 
   <label>JWT Token</label>
-  <input id="token" type="text" placeholder="Paste your JWT token" />
+  <input id="token" type="text" placeholder="Paste your JWT token or click Generate below" />
+
+  <button onclick="generateToken()">🔐 Generate Token</button>
 
   <label>Notification ID (nid)</label>
   <input id="nid" type="text" placeholder="e.g. push_notifications_2025" />
@@ -48,12 +63,43 @@
   <label>Email IDs</label>
   <textarea id="emailList" rows="5" placeholder="Comma or newline separated emails"></textarea>
 
-  <button onclick="submitEmails('subscribe')">Subscribe</button>
-  <button onclick="submitEmails('unsubscribe')">Unsubscribe</button>
+  <div class="flex">
+    <button onclick="submitEmails('subscribe')">Subscribe</button>
+    <button onclick="submitEmails('unsubscribe')">Unsubscribe</button>
+  </div>
 
   <div id="status" class="status"></div>
 
   <script>
+    async function generateToken() {
+      const statusBox = document.getElementById("status");
+
+      const payload = {
+        user_id: "admin123",
+        email: "admin@parikshe.in",
+        name: "Parikshe Admin"
+      };
+
+      try {
+        const response = await fetch("http://prashanthrapelli.free.nf/generateJWT.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.token) {
+          document.getElementById("token").value = data.token;
+          statusBox.innerHTML = `<span class="success">✅ JWT token generated successfully.</span>`;
+        } else {
+          throw new Error(data.message || "JWT generation failed.");
+        }
+      } catch (err) {
+        statusBox.innerHTML = `<span class="error">❌ ${err.message}</span>`;
+      }
+    }
+
     async function submitEmails(action) {
       const token = document.getElementById("token").value.trim();
       const nid = document.getElementById("nid").value.trim();
@@ -61,7 +107,7 @@
       const statusBox = document.getElementById("status");
 
       if (!token || !nid || !emailText) {
-        statusBox.innerHTML = '<span class="error">Please fill in all fields.</span>';
+        statusBox.innerHTML = '<span class="error">❌ Please fill in all fields.</span>';
         return;
       }
 
@@ -71,18 +117,18 @@
         .filter(e => /^[^@]+@[^@]+\.[^@]+$/.test(e));
 
       if (emails.length === 0) {
-        statusBox.innerHTML = '<span class="error">No valid emails entered.</span>';
+        statusBox.innerHTML = '<span class="error">❌ No valid emails entered.</span>';
         return;
       }
 
-      statusBox.innerHTML = "⏳ Processing...";
+      statusBox.innerHTML = "⏳ Sending request...";
 
       try {
-        const res = await fetch('https://api.parikshe.in/notifications/subscription', {
-          method: 'POST',
+        const res = await fetch("https://api.parikshe.in/notifications/subscription", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': token
+            "Content-Type": "application/json",
+            "X-API-Key": token
           },
           body: JSON.stringify({
             nid,
@@ -94,10 +140,10 @@
         const data = await res.json();
 
         if (!res.ok) {
-          throw new Error(data.message || 'Request failed');
+          throw new Error(data.message || "Subscription failed.");
         }
 
-        statusBox.innerHTML = `<span class="success">✅ ${action} successful for ${emails.length} emails.</span>`;
+        statusBox.innerHTML = `<span class="success">✅ ${action} successful for ${emails.length} email(s).</span>`;
         document.getElementById("emailList").value = '';
       } catch (err) {
         statusBox.innerHTML = `<span class="error">❌ ${err.message}</span>`;
