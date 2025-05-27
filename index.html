@@ -77,6 +77,11 @@
     .sku-item:hover {
       background-color: #f0f0f0;
     }
+
+    .section-label {
+      margin-top: 16px;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -86,15 +91,18 @@
   <div class="form-section">
     <h2>📩 Parikshe Product Subscription Manager</h2>
 
-    <label>JWT Token</label>
-    <input id="token" type="text" placeholder="Paste or generate JWT token" />
-
-    <button onclick="window.open('http://prashanthrapelli.free.nf/generateJWT.php', '_blank')">🔐 Generate Token</button>
-
     <label>Client ID</label>
     <input id="clientId" type="text" value="PriHiJkL9mNoEjnnAlkiofsX1yZ2aNcKeE" />
 
-    <label>Product SKU</label>
+    <label>JWT Token</label>
+    <input id="token" type="text" placeholder="Paste a valid JWT token here" />
+
+    <div class="flex">
+      <button onclick="fetchAvailableProducts()">📦 Fetch Products</button>
+      <button onclick="window.open('http://prashanthrapelli.free.nf/generateJWT.php', '_blank')">🔐 Generate Token</button>
+    </div>
+
+    <label class="section-label">Product SKU</label>
     <input id="sku" type="text" placeholder="Click a product on the right to autofill" />
 
     <label>Email IDs</label>
@@ -111,7 +119,7 @@
   <!-- RIGHT: DYNAMIC PRODUCT LIST -->
   <div class="sku-list">
     <h3>📦 Available Products</h3>
-    <div id="skuContainer">Loading product list...</div>
+    <div id="skuContainer">Click "Fetch Products" after adding JWT</div>
   </div>
 </div>
 
@@ -126,42 +134,25 @@
     skuInput.value = sku;
   }
 
-  async function generateToken() {
-    try {
-      const res = await fetch("http://prashanthrapelli.free.nf/generateJWT.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: "admin123",
-          email: "admin@parikshe.in",
-          name: "Parikshe Admin"
-        })
-      });
-
-      const data = await res.json();
-      if (res.ok && data.token) {
-        tokenInput.value = data.token;
-        statusBox.innerHTML = `<span class="success">✅ Token generated successfully.</span>`;
-        fetchAvailableProducts(data.token); // ⬅️ Call dynamic SKU fetch
-      } else {
-        throw new Error(data.message || "Token generation failed.");
-      }
-    } catch (err) {
-      statusBox.innerHTML = `<span class="error">❌ ${err.message}</span>`;
-    }
-  }
-
-  async function fetchAvailableProducts(jwt) {
+  async function fetchAvailableProducts() {
+    const jwt = tokenInput.value.trim();
     const client_id = clientIdInput.value.trim();
     const group_nid = 561089;
+
+    if (!jwt) {
+      skuContainer.innerHTML = '<span class="error">❌ Please enter a valid JWT token.</span>';
+      return;
+    }
+
     const url = `https://study.parikshe.in/api/executereport?client_id=${client_id}&jwt=${jwt}&report=parikshe_available_products&group_nid=${group_nid}`;
 
     try {
       const res = await fetch(url);
       const data = await res.json();
+      console.log("Product list response:", data);
 
       if (!Array.isArray(data) || data.length === 0) {
-        skuContainer.innerHTML = `<span class="error">❌ No products found.</span>`;
+        skuContainer.innerHTML = `<span class="error">❌ No products found or invalid response.</span>`;
         return;
       }
 
