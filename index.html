@@ -8,13 +8,35 @@
     body {
       font-family: sans-serif;
       padding: 20px;
-      max-width: 600px;
-      margin: auto;
+      margin: 0;
       background: #f9f9f9;
     }
-    h2 {
-      text-align: center;
+
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      max-width: 1200px;
+      margin: auto;
     }
+
+    .form-section {
+      flex: 1;
+      min-width: 300px;
+      padding: 20px;
+    }
+
+    .sku-list {
+      flex: 1;
+      min-width: 250px;
+      background: #ffffff;
+      padding: 20px;
+      border-left: 1px solid #ccc;
+    }
+
+    h2, h3 {
+      margin-top: 0;
+    }
+
     input, textarea, button {
       width: 100%;
       margin: 8px 0;
@@ -23,128 +45,189 @@
       border-radius: 4px;
       font-size: 14px;
     }
+
     button {
       background: #007bff;
       color: white;
       border: none;
       cursor: pointer;
     }
+
     button:hover {
       background: #0056b3;
     }
+
     .status {
       margin-top: 10px;
       font-weight: bold;
     }
+
     .success { color: green; }
     .error { color: red; }
+
     .flex { display: flex; gap: 10px; }
     .flex button { flex: 1; }
+
+    .sku-item {
+      cursor: pointer;
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .sku-item:hover {
+      background-color: #f0f0f0;
+    }
   </style>
 </head>
 <body>
 
-  <h2>📩 Parikshe Product Subscription Manager</h2>
+<div class="container">
+  <!-- LEFT: FORM -->
+  <div class="form-section">
+    <h2>📩 Parikshe Product Subscription Manager</h2>
 
-  <label>JWT Token</label>
-  <input id="token" type="text" placeholder="Paste your JWT token or generate below" />
+    <label>JWT Token</label>
+    <input id="token" type="text" placeholder="Paste or generate JWT token" />
 
-  <button onclick="window.open('http://prashanthrapelli.free.nf/generateJWT.php', '_blank')">🔐 Generate Token</button>
+    <button onclick="window.open('http://prashanthrapelli.free.nf/generateJWT.php', '_blank')">🔐 Generate Token</button>
 
-  <label>Client ID</label>
-  <input id="clientId" type="text" value="PriHiJkL9mNoEjnnAlkiofsX1yZ2aNcKeE" />
+    <label>Client ID</label>
+    <input id="clientId" type="text" value="PriHiJkL9mNoEjnnAlkiofsX1yZ2aNcKeE" />
 
-  <label>Product SKU</label>
-  <input id="sku" type="text" value="PROD-573301-Annual Plan" />
+    <label>Product SKU</label>
+    <input id="sku" type="text" placeholder="Click a product on the right to autofill" />
 
-  <label>Email IDs</label>
-  <textarea id="emailList" rows="5" placeholder="One email per line or comma-separated"></textarea>
+    <label>Email IDs</label>
+    <textarea id="emailList" rows="5" placeholder="One email per line or comma-separated"></textarea>
 
-  <div class="flex">
-    <button onclick="submitEmails('subscribe')">Subscribe</button>
-    <button onclick="submitEmails('unsubscribe')">Unsubscribe</button>
+    <div class="flex">
+      <button onclick="submitEmails('subscribe')">Subscribe</button>
+      <button onclick="submitEmails('unsubscribe')">Unsubscribe</button>
+    </div>
+
+    <div id="status" class="status"></div>
   </div>
 
-  <div id="status" class="status"></div>
+  <!-- RIGHT: DYNAMIC PRODUCT LIST -->
+  <div class="sku-list">
+    <h3>📦 Available Products</h3>
+    <div id="skuContainer">Loading product list...</div>
+  </div>
+</div>
 
-  <script>
-    async function generateToken() {
-      const statusBox = document.getElementById("status");
+<script>
+  const tokenInput = document.getElementById("token");
+  const clientIdInput = document.getElementById("clientId");
+  const skuInput = document.getElementById("sku");
+  const statusBox = document.getElementById("status");
+  const skuContainer = document.getElementById("skuContainer");
+
+  function setSKU(sku) {
+    skuInput.value = sku;
+  }
+
+  async function generateToken() {
+    try {
+      const res = await fetch("http://prashanthrapelli.free.nf/generateJWT.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: "admin123",
+          email: "admin@parikshe.in",
+          name: "Parikshe Admin"
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.token) {
+        tokenInput.value = data.token;
+        statusBox.innerHTML = `<span class="success">✅ Token generated successfully.</span>`;
+        fetchAvailableProducts(data.token); // ⬅️ Call dynamic SKU fetch
+      } else {
+        throw new Error(data.message || "Token generation failed.");
+      }
+    } catch (err) {
+      statusBox.innerHTML = `<span class="error">❌ ${err.message}</span>`;
+    }
+  }
+
+  async function fetchAvailableProducts(jwt) {
+    const client_id = clientIdInput.value.trim();
+    const group_nid = 561089;
+    const url = `https://study.parikshe.in/api/executereport?client_id=${client_id}&jwt=${jwt}&report=parikshe_available_products&group_nid=${group_nid}`;
+
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (!Array.isArray(data) || data.length === 0) {
+        skuContainer.innerHTML = `<span class="error">❌ No products found.</span>`;
+        return;
+      }
+
+      skuContainer.innerHTML = "";
+      data.forEach(product => {
+        const div = document.createElement("div");
+        div.className = "sku-item";
+        div.innerHTML = `${product.sku}<br><small>${product.title}</small>`;
+        div.onclick = () => setSKU(product.sku);
+        skuContainer.appendChild(div);
+      });
+    } catch (err) {
+      skuContainer.innerHTML = `<span class="error">❌ Failed to load product list.</span>`;
+    }
+  }
+
+  async function submitEmails(action) {
+    const token = tokenInput.value.trim();
+    const clientId = clientIdInput.value.trim();
+    const sku = skuInput.value.trim();
+    const emailText = document.getElementById("emailList").value.trim();
+
+    if (!token || !clientId || !sku || !emailText) {
+      statusBox.innerHTML = '<span class="error">❌ Please fill in all fields.</span>';
+      return;
+    }
+
+    const emails = emailText
+      .split(/[\s,]+/)
+      .map(e => e.trim())
+      .filter(e => /^[^@]+@[^@]+\.[^@]+$/.test(e));
+
+    if (emails.length === 0) {
+      statusBox.innerHTML = '<span class="error">❌ No valid emails entered.</span>';
+      return;
+    }
+
+    let successCount = 0, failed = [];
+
+    for (const email of emails) {
+      const url = `https://admin.study.parikshe.in/api/${action}/product?jwt=${token}&client_id=${clientId}`;
+      const body = action === 'subscribe'
+        ? { sku, username: email }
+        : { product_sku: sku, username: email };
 
       try {
-        const res = await fetch("http://prashanthrapelli.free.nf/generateJWT.php", {
+        const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_id: "admin123",
-            email: "admin@parikshe.in",
-            name: "Parikshe Admin"
-          })
+          body: JSON.stringify(body)
         });
 
-        const data = await res.json();
-        if (res.ok && data.token) {
-          document.getElementById("token").value = data.token;
-          statusBox.innerHTML = `<span class="success">✅ JWT token generated successfully.</span>`;
-        } else {
-          throw new Error(data.message || "Token generation failed.");
-        }
+        if (res.ok) successCount++;
+        else failed.push(email);
       } catch (err) {
-        statusBox.innerHTML = `<span class="error">❌ ${err.message}</span>`;
+        failed.push(email);
       }
     }
 
-    async function submitEmails(action) {
-      const token = document.getElementById("token").value.trim();
-      const clientId = document.getElementById("clientId").value.trim();
-      const sku = document.getElementById("sku").value.trim();
-      const emailText = document.getElementById("emailList").value.trim();
-      const statusBox = document.getElementById("status");
+    statusBox.innerHTML =
+      `<span class="success">✅ ${action} successful for ${successCount} email(s).</span>` +
+      (failed.length ? `<br><span class="error">❌ Failed for: ${failed.join(', ')}</span>` : "");
 
-      if (!token || !clientId || !sku || !emailText) {
-        statusBox.innerHTML = '<span class="error">❌ Please fill in all fields.</span>';
-        return;
-      }
-
-      const emails = emailText
-        .split(/[\s,]+/)
-        .map(e => e.trim())
-        .filter(e => /^[^@]+@[^@]+\.[^@]+$/.test(e));
-
-      if (emails.length === 0) {
-        statusBox.innerHTML = '<span class="error">❌ No valid emails entered.</span>';
-        return;
-      }
-
-      let successCount = 0, failed = [];
-
-      for (const email of emails) {
-        const url = `https://admin.study.parikshe.in/api/${action}/product?jwt=${token}&client_id=${clientId}`;
-        const body = action === 'subscribe'
-          ? { sku, username: email }
-          : { product_sku: sku, username: email };
-
-        try {
-          const res = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body)
-          });
-
-          if (res.ok) successCount++;
-          else failed.push(email);
-        } catch (err) {
-          failed.push(email);
-        }
-      }
-
-      statusBox.innerHTML =
-        `<span class="success">✅ ${action} successful for ${successCount} email(s).</span>` +
-        (failed.length ? `<br><span class="error">❌ Failed for: ${failed.join(', ')}</span>` : "");
-
-      document.getElementById("emailList").value = '';
-    }
-  </script>
+    document.getElementById("emailList").value = '';
+  }
+</script>
 
 </body>
 </html>
