@@ -7,36 +7,27 @@
   <style>
     body {
       font-family: sans-serif;
-      padding: 20px;
       margin: 0;
       background: #f9f9f9;
     }
-
     .container {
       display: flex;
       flex-wrap: wrap;
       max-width: 1200px;
       margin: auto;
     }
-
-    .form-section {
+    .form-section, .sku-list {
       flex: 1;
       min-width: 300px;
       padding: 20px;
     }
-
     .sku-list {
-      flex: 1;
-      min-width: 250px;
-      background: #ffffff;
-      padding: 20px;
+      background: #fff;
       border-left: 1px solid #ccc;
     }
-
     h2, h3 {
       margin-top: 0;
     }
-
     input, textarea, button {
       width: 100%;
       margin: 8px 0;
@@ -45,49 +36,37 @@
       border-radius: 4px;
       font-size: 14px;
     }
-
     button {
       background: #007bff;
       color: white;
       border: none;
       cursor: pointer;
     }
-
     button:hover {
       background: #0056b3;
     }
-
     .status {
       margin-top: 10px;
       font-weight: bold;
     }
-
     .success { color: green; }
     .error { color: red; }
-
     .flex { display: flex; gap: 10px; }
     .flex button { flex: 1; }
-
     .sku-item {
       cursor: pointer;
       padding: 8px;
       border-bottom: 1px solid #eee;
     }
-
     .sku-item:hover {
       background-color: #f0f0f0;
-    }
-
-    .section-label {
-      margin-top: 16px;
-      font-weight: bold;
     }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <!-- LEFT: FORM -->
+  <!-- FORM SECTION -->
   <div class="form-section">
     <h2>📩 Parikshe Product Subscription Manager</h2>
 
@@ -102,7 +81,7 @@
       <button onclick="window.open('http://prashanthrapelli.free.nf/generateJWT.php', '_blank')">🔐 Generate Token</button>
     </div>
 
-    <label class="section-label">Product SKU</label>
+    <label>Product SKU</label>
     <input id="sku" type="text" placeholder="Click a product on the right to autofill" />
 
     <label>Email IDs</label>
@@ -116,43 +95,48 @@
     <div id="status" class="status"></div>
   </div>
 
-  <!-- RIGHT: DYNAMIC PRODUCT LIST -->
+  <!-- PRODUCT LIST SECTION -->
   <div class="sku-list">
     <h3>📦 Available Products</h3>
-    <div id="skuContainer">Click "Fetch Products" after adding JWT</div>
+    <div id="skuContainer">Click "Fetch Products" after entering JWT</div>
   </div>
 </div>
 
 <script>
-  const tokenInput = document.getElementById("token");
-  const clientIdInput = document.getElementById("clientId");
-  const skuInput = document.getElementById("sku");
-  const statusBox = document.getElementById("status");
-  const skuContainer = document.getElementById("skuContainer");
-
   function setSKU(sku) {
-    skuInput.value = sku;
+    document.getElementById('sku').value = sku;
   }
 
   async function fetchAvailableProducts() {
-    const jwt = tokenInput.value.trim();
-    const client_id = clientIdInput.value.trim();
+    const token = document.getElementById("token").value.trim();
+    const clientId = document.getElementById("clientId").value.trim();
     const group_nid = 561089;
+    const skuContainer = document.getElementById("skuContainer");
 
-    if (!jwt) {
-      skuContainer.innerHTML = '<span class="error">❌ Please enter a valid JWT token.</span>';
+    if (!token || !clientId) {
+      skuContainer.innerHTML = `<span class="error">❌ JWT and Client ID required.</span>`;
       return;
     }
 
-    const url = `https://study.parikshe.in/api/executereport?client_id=${client_id}&jwt=${jwt}&report=parikshe_available_products&group_nid=${group_nid}`;
+    const url = `https://study.parikshe.in/api/executereport?client_id=${clientId}&jwt=${token}&report=parikshe_available_products&group_nid=${group_nid}`;
+    console.log("Fetching products from:", url);
 
     try {
-      const res = await fetch(url);
-      const data = await res.json();
+      const response = await fetch(url);
+      console.log("Fetch status:", response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Response error:", errorText);
+        skuContainer.innerHTML = `<span class="error">❌ Failed to load product list. (Status ${response.status})</span>`;
+        return;
+      }
+
+      const data = await response.json();
       console.log("Product list response:", data);
 
       if (!Array.isArray(data) || data.length === 0) {
-        skuContainer.innerHTML = `<span class="error">❌ No products found or invalid response.</span>`;
+        skuContainer.innerHTML = `<span class="error">❌ No products found or invalid token/group.</span>`;
         return;
       }
 
@@ -164,19 +148,22 @@
         div.onclick = () => setSKU(product.sku);
         skuContainer.appendChild(div);
       });
+
     } catch (err) {
-      skuContainer.innerHTML = `<span class="error">❌ Failed to load product list.</span>`;
+      console.error("Fetch error:", err);
+      skuContainer.innerHTML = `<span class="error">❌ Error: ${err.message}</span>`;
     }
   }
 
   async function submitEmails(action) {
-    const token = tokenInput.value.trim();
-    const clientId = clientIdInput.value.trim();
-    const sku = skuInput.value.trim();
+    const token = document.getElementById("token").value.trim();
+    const clientId = document.getElementById("clientId").value.trim();
+    const sku = document.getElementById("sku").value.trim();
     const emailText = document.getElementById("emailList").value.trim();
+    const statusBox = document.getElementById("status");
 
     if (!token || !clientId || !sku || !emailText) {
-      statusBox.innerHTML = '<span class="error">❌ Please fill in all fields.</span>';
+      statusBox.innerHTML = '<span class="error">❌ All fields are required.</span>';
       return;
     }
 
@@ -193,21 +180,30 @@
     let successCount = 0, failed = [];
 
     for (const email of emails) {
-      const url = `https://admin.study.parikshe.in/api/${action}/product?jwt=${token}&client_id=${clientId}`;
-      const body = action === 'subscribe'
-        ? { sku, username: email }
+      const endpoint = `https://admin.study.parikshe.in/api/${action}/product?jwt=${token}&client_id=${clientId}`;
+      const payload = action === "subscribe"
+        ? { sku: sku, username: email }
         : { product_sku: sku, username: email };
 
+      console.log(`[${action.toUpperCase()}] ${email} →`, payload);
+
       try {
-        const res = await fetch(url, {
+        const res = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body)
+          body: JSON.stringify(payload)
         });
 
-        if (res.ok) successCount++;
-        else failed.push(email);
+        if (res.ok) {
+          successCount++;
+          console.log(`✅ ${email} ${action} successful`);
+        } else {
+          const errorText = await res.text();
+          console.error(`❌ ${email} failed (${res.status}):`, errorText);
+          failed.push(email);
+        }
       } catch (err) {
+        console.error(`❌ ${email} error:`, err);
         failed.push(email);
       }
     }
